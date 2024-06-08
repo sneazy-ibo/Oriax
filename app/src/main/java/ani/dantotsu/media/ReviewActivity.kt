@@ -54,8 +54,11 @@ class ReviewActivity : AppCompatActivity() {
         }
         binding.followerGrid.visibility = View.GONE
         binding.followerList.visibility = View.GONE
-        binding.followFilterButton.setImageResource(R.drawable.ic_add)
-        binding.followFilterButton.setOnClickListener {
+<<<<<<< HEAD
+======
+        binding.createReviewButton.setImageResource(R.drawable.ic_add)
+>>>>>>> 954f22b4 (fix: unused binding for creating reviews)
+        binding.createReviewButton.setOnClickListener {
             ContextCompat.startActivity(
                 this,
                 Intent(this, ActivityMarkdownCreator::class.java)
@@ -63,7 +66,6 @@ class ReviewActivity : AppCompatActivity() {
                 null
             )
         }
-        binding.followFilterButton.visibility = View.GONE
         binding.listTitle.text = getString(R.string.reviews)
         binding.listRecyclerView.adapter = adapter
         binding.listRecyclerView.layoutManager = LinearLayoutManager(
