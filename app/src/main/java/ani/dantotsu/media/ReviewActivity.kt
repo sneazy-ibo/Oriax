@@ -54,10 +54,6 @@ class ReviewActivity : AppCompatActivity() {
         }
         binding.followerGrid.visibility = View.GONE
         binding.followerList.visibility = View.GONE
-<<<<<<< HEAD
-======
-        binding.createReviewButton.setImageResource(R.drawable.ic_add)
->>>>>>> 954f22b4 (fix: unused binding for creating reviews)
         binding.createReviewButton.setOnClickListener {
             ContextCompat.startActivity(
                 this,
