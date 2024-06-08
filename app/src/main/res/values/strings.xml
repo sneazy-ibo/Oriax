@@ -87,6 +87,8 @@
     <string name="no_activities">No more activities</string>
     <string name="followers">Followers</string>
     <string name="write_a_message">Write a Message</string>
+    <string name="write_a_review">Write a Review</string>
+    <string name="write_a_summary">Write a Summary</string>
     <string name="status">STATUS</string>
     <string-array name="status" translatable="false">
         <item>PLANNING</item>
@@ -115,6 +117,8 @@
     <string name="progress">PROGRESS</string>
     <string name="score">SCORE</string>
     <string name="score_suffix">" / 10"</string>
+    <string name="rating">Rating</string>
+    <string name="rating_suffix">" / 100"</string>
     <string name="started_at">STARTED AT</string>
     <string name="completed_at">COMPLETED AT</string>
     <string name="save">Save</string>
@@ -365,6 +369,7 @@
     <string name="filter">Filter</string>
     <string name="year">Year</string>
     <string name="apply">Apply</string>
+    <string name="draft">Draft</string>
     <string name="cancel">Cancel</string>
     <string name="edit">Edit</string>
     <string name="publish">Publish</string>
