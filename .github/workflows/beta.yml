@@ -36,27 +36,38 @@ jobs:
           LAST_SHA=$(git rev-list --max-parents=0 HEAD)
         fi
         echo "Commits since $LAST_SHA:"
-        COMMIT_LOGS=$(git log $LAST_SHA..HEAD --pretty=format:"● %s [~%an](<https://github.com/%an>)")
-        COMMIT_LOGS="${COMMIT_LOGS//'%'/'%25'}"
-        COMMIT_LOGS="${COMMIT_LOGS//$'\n'/'%0A'}"
-        COMMIT_LOGS="${COMMIT_LOGS//$'\r'/'%0D'}"
+        COMMIT_LOGS=$(git log $LAST_SHA..HEAD --pretty=format:"%H")
         LATEST_COMMIT_SHA=$(git rev-parse HEAD)
-        LATEST_COMMIT_AUTHOR=$(git log -1 --pretty=format:'%an')
-        LATEST_COMMIT_AUTHOR_LOGIN=$(curl -s "https://api.github.com/search/users?q=${LATEST_COMMIT_AUTHOR}" | jq -r '.items[0].login')
-        LATEST_COMMIT_DATE=$(git log -1 --pretty=format:'%cI')
-        AUTHOR_AVATAR_URL="https://avatars.githubusercontent.com/u/${LATEST_COMMIT_AUTHOR_LOGIN}"
-        echo "COMMIT_LOG=${COMMIT_LOGS}" >> $GITHUB_ENV
         echo "LATEST_COMMIT_SHA=${LATEST_COMMIT_SHA}" >> $GITHUB_ENV
-        echo "LATEST_COMMIT_AUTHOR_LOGIN=${LATEST_COMMIT_AUTHOR_LOGIN}" >> $GITHUB_ENV
-        echo "LATEST_COMMIT_DATE=${LATEST_COMMIT_DATE}" >> $GITHUB_ENV
-        echo "AUTHOR_AVATAR_URL=${AUTHOR_AVATAR_URL}" >> $GITHUB_ENV
-        echo "$COMMIT_LOGS"
-        echo "$LATEST_COMMIT_SHA"
-        echo "$LATEST_COMMIT_AUTHOR_LOGIN"
-        echo "$LATEST_COMMIT_DATE"
+        echo "COMMIT_LOGS=${COMMIT_LOGS}" >> $GITHUB_ENV
       shell: /usr/bin/bash -e {0}
       env:
         CI: true
+
+    - name: Fetch commit details from GitHub API
+      run: |
+        COMMIT_LOG=""
+        for commit_sha in $COMMIT_LOGS; do
+          commit_data=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/commits/$commit_sha)
+          author_name=$(echo "$commit_data" | jq -r '.commit.author.name')
+          author_login=$(echo "$commit_data" | jq -r '.author.login')
+          author_avatar_url=$(echo "$commit_data" | jq -r '.author.avatar_url')
+          commit_message=$(echo "$commit_data" | jq -r '.commit.message' | head -n 1)
+          COMMIT_LOG+="● ${commit_message} [~${author_name}](https://github.com/${author_login})%0A"
+          if [ "$commit_sha" = "${LATEST_COMMIT_SHA}" ]; then
+            LATEST_COMMIT_AUTHOR_LOGIN=$author_login
+            LATEST_COMMIT_DATE=$(echo "$commit_data" | jq -r '.commit.author.date')
+            AUTHOR_AVATAR_URL=$author_avatar_url
+          fi
+        done
+        echo "COMMIT_LOG=${COMMIT_LOG}" >> $GITHUB_ENV
+        echo "LATEST_COMMIT_AUTHOR_LOGIN=${LATEST_COMMIT_AUTHOR_LOGIN}" >> $GITHUB_ENV
+        echo "LATEST_COMMIT_DATE=${LATEST_COMMIT_DATE}" >> $GITHUB_ENV
+        echo "AUTHOR_AVATAR_URL=${AUTHOR_AVATAR_URL}" >> $GITHUB_ENV
+      shell: /usr/bin/bash -e {0}
+      env:
+        COMMIT_LOGS: ${{ env.COMMIT_LOGS }}
+        LATEST_COMMIT_SHA: ${{ env.LATEST_COMMIT_SHA }}
 
     - name: Save Current SHA for Next Run
       run: echo ${{ github.sha }} > last_sha.txt
@@ -108,14 +119,6 @@ jobs:
         asset_path: app/build/outputs/apk/google/alpha/app-google-alpha.apk
         asset_name: app-google-alpha.apk
         asset_content_type: application/vnd.android.package-archive
-
-    - name: Get Latest Commit Author Info
-      id: get_author_info
-      run: |
-        AUTHOR_LOGIN=$(curl -s "https://api.github.com/search/users?q=${{ env.LATEST_COMMIT_AUTHOR }}" | jq -r '.items[0].login')
-        AUTHOR_AVATAR_URL=$(curl -s "https://api.github.com/users/$AUTHOR_LOGIN" | jq -r '.avatar_url')
-        echo "AUTHOR_LOGIN=${AUTHOR_LOGIN}" >> $GITHUB_ENV
-        echo "AUTHOR_AVATAR_URL=${AUTHOR_AVATAR_URL}" >> $GITHUB_ENV
 
     - name: Upload Embed to Discord
       shell: bash
