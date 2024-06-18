@@ -38,21 +38,28 @@ jobs:
         fi
         echo "Commits since $LAST_SHA:"
         # Accumulate commit logs in a shell variable
-        COMMIT_LOGS=$(git log $LAST_SHA..HEAD --pretty=format:"● %s [~%an](<https://github.com/%aN>)")
+        COMMIT_LOGS=$(git log $LAST_SHA..HEAD --pretty=format:"● %s [~%an](<https://github.com/%ae>)")
         # URL-encode the newline characters for GitHub Actions
         COMMIT_LOGS="${COMMIT_LOGS//'%'/'%25'}"
         COMMIT_LOGS="${COMMIT_LOGS//$'\n'/'%0A'}"
         COMMIT_LOGS="${COMMIT_LOGS//$'\r'/'%0D'}"
         # Get the latest commit info
         LATEST_COMMIT_SHA=$(git rev-parse HEAD)
-        LATEST_COMMIT_AUTHOR=$(git log -1 --pretty=format:'%aN')
+        LATEST_COMMIT_AUTHOR=$(git log -1 --pretty=format:'%an')
         LATEST_COMMIT_AUTHOR_EMAIL=$(git log -1 --pretty=format:'%ae')
         LATEST_COMMIT_DATE=$(git log -1 --pretty=format:'%cI')
+        # Append the encoded commit logs to the COMMIT_LOG environment variable
         echo "COMMIT_LOG=${COMMIT_LOGS}" >> $GITHUB_ENV
         echo "LATEST_COMMIT_SHA=${LATEST_COMMIT_SHA}" >> $GITHUB_ENV
         echo "LATEST_COMMIT_AUTHOR=${LATEST_COMMIT_AUTHOR}" >> $GITHUB_ENV
         echo "LATEST_COMMIT_AUTHOR_EMAIL=${LATEST_COMMIT_AUTHOR_EMAIL}" >> $GITHUB_ENV
         echo "LATEST_COMMIT_DATE=${LATEST_COMMIT_DATE}" >> $GITHUB_ENV
+        # Debugging: Print the variable to check its content
+        echo "$COMMIT_LOGS"
+        echo "$LATEST_COMMIT_SHA"
+        echo "$LATEST_COMMIT_AUTHOR"
+        echo "$LATEST_COMMIT_AUTHOR_EMAIL"
+        echo "$LATEST_COMMIT_DATE"
       shell: /usr/bin/bash -e {0}
       env:
         CI: true
@@ -87,14 +94,6 @@ jobs:
     - name: Build with Gradle
       run: ./gradlew assembleGoogleAlpha
 
-    - name: Get APK Info
-      run: |
-        APK_PATH="app/build/outputs/apk/google/alpha/app-google-alpha.apk"
-        FILE_SIZE=$(du -h "$APK_PATH" | cut -f1)
-        IS_SIGNED=$(jarsigner -verify -verbose -certs "$APK_PATH" 2>&1 | grep -q 'smk' && echo "signed" || echo "unsigned")
-        echo "FILE_SIZE=${FILE_SIZE}" >> $GITHUB_ENV
-        echo "IS_SIGNED=${IS_SIGNED}" >> $GITHUB_ENV
-
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -119,37 +118,32 @@ jobs:
     - name: Get Latest Commit Author Info
       id: get_author_info
       run: |
-        AUTHOR_LOGIN=$(curl -s "https://api.github.com/search/users?q=${{ env.LATEST_COMMIT_AUTHOR }}" | jq -r '.items[0].login')
+        AUTHOR_LOGIN=$(curl -s "https://api.github.com/search/users?q=${{ env.LATEST_COMMIT_AUTHOR_EMAIL }}" | jq -r '.items[0].login')
         AUTHOR_AVATAR_URL=$(curl -s "https://api.github.com/users/$AUTHOR_LOGIN" | jq -r '.avatar_url')
         echo "AUTHOR_LOGIN=${AUTHOR_LOGIN}" >> $GITHUB_ENV
         echo "AUTHOR_AVATAR_URL=${AUTHOR_AVATAR_URL}" >> $GITHUB_ENV
 
-    - name: Upload APK to Discord
+    - name: Upload Embed to Discord
       shell: bash
       run: |
         commit_messages=$(echo "$COMMIT_LOG" | sed 's/%0A/\n/g; s/^/\n/')
+        # Truncate commit messages if they are too long
         max_length=1900
         if [ ${#commit_messages} -gt $max_length ]; then
           commit_messages="${commit_messages:0:$max_length}... (truncated)"
         fi
-        download_link="https://github.com/${{ github.repository }}/releases/download/${{ env.TAG_NAME }}/app-google-alpha.apk"
-        contentbody=$( jq -nc \
-          --arg title "New Alpha-Build dropped" \
-          --arg description "@everyone" \
-          --arg footer "Version ${{ env.VERSION }}" \
-          --arg timestamp "${{ env.LATEST_COMMIT_DATE }}" \
-          --arg thumbnail "${{ env.AUTHOR_AVATAR_URL }}" \
-          --arg commits "$commit_messages" \
-          --arg download_info "File size: `${{ env.FILE_SIZE }}`\nKeys: `${{ env.IS_SIGNED }}`\nOther info...\nLink: [here]($download_link)" \
-          '{"embeds": [{"title": $title, "description": $description, "color": 15532323, "fields": [{"name": "Commits:", "value": $commits, "inline": true}, {"name": "Download APK:", "value": $download_info, "inline": true}], "footer": {"text": $footer}, "timestamp": $timestamp, "thumbnail": {"url": $thumbnail}}], "username": "PRE-TESTER", "avatar_url": "https://i.imgur.com/xizROdr.png"}' )
+        contentbody=$( jq -nc --arg title "New Alpha-Build dropped" --arg description "$commit_messages" --arg footer "Version ${{ env.VERSION }}" --arg timestamp "${{ env.LATEST_COMMIT_DATE }}" --arg thumbnail "${{ env.AUTHOR_AVATAR_URL }}" '{"embeds": [{"title": $title, "description": $description, "color": 15532323, "footer": {"text": $footer}, "timestamp": $timestamp, "thumbnail": {"url": $thumbnail}}]}' )
         curl -H "Content-Type: application/json" -X POST -d "$contentbody" ${{ secrets.DISCORD_WEBHOOK }}
       env:
         COMMIT_LOG: ${{ env.COMMIT_LOG }}
         VERSION: ${{ env.VERSION }}
         LATEST_COMMIT_DATE: ${{ env.LATEST_COMMIT_DATE }}
         AUTHOR_AVATAR_URL: ${{ env.AUTHOR_AVATAR_URL }}
-        FILE_SIZE: ${{ env.FILE_SIZE }}
-        IS_SIGNED: ${{ env.IS_SIGNED }}
+
+    - name: Upload APK to Discord
+      shell: bash
+      run: |
+        curl -F "payload_json={\"content\":\"New APK Build\"}" -F "dantotsu_debug=@app/build/outputs/apk/google/alpha/app-google-alpha.apk" ${{ secrets.DISCORD_WEBHOOK }}
 
     - name: Upload Current SHA as Artifact
       uses: actions/upload-artifact@v2
