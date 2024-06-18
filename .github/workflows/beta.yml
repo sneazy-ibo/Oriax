@@ -58,9 +58,12 @@ jobs:
       run: |
         VER=$(grep -E -o "versionName \".*\"" app/build.gradle | sed -e 's/versionName //g' | tr -d '"')
         SHA=${{ github.sha }}
-        VERSION="$VER+${SHA:0:7}"
+        SHORT_SHA=${SHA:0:7}
+        VERSION="$VER+$SHORT_SHA"
+        TAG_NAME="v$VER-$SHORT_SHA"
         echo "Version $VERSION"
         echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
 
     - name: Setup JDK 17
       uses: actions/setup-java@v3
@@ -84,8 +87,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.sha }}
-        release_name: "Release ${{ github.sha }}"
+        tag_name: ${{ env.TAG_NAME }}
+        release_name: "Release ${{ env.TAG_NAME }}"
         draft: false
         prerelease: true
 
